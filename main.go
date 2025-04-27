@@ -23,7 +23,6 @@ var (
 func readNotes() error {
 	notesMutex.Lock()
 	defer notesMutex.Unlock()
-
 	file, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -33,48 +32,57 @@ func readNotes() error {
 		}
 		return err
 	}
-
 	return json.Unmarshal(file, &notes)
 }
 
 func writeNotes() error {
 	notesMutex.Lock()
 	defer notesMutex.Unlock()
-
 	// Konverter notes til JSON
 	data, err := json.MarshalIndent(notes, "", "  ")
 	if err != nil {
 		return err
 	}
-
 	// Skriv til filen
 	return os.WriteFile(filePath, data, 0644)
 }
 
 func getNotesHandler(w http.ResponseWriter, r *http.Request) {
-	// Returner alle noter som JSON
 	if r.Method != http.MethodGet {
 		http.Error(w, "Metode ikke tilladt", http.StatusMethodNotAllowed)
 		return
 	}
+
+	notesMutex.Lock()
+	notesSnapshot := make([]Note, len(notes))
+	copy(notesSnapshot, notes)
+	notesMutex.Unlock()
+
+	// Returner alle noter som JSON
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(notes); err != nil {
+	if err := json.NewEncoder(w).Encode(notesSnapshot); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func createNoteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Metode ikke tilladt", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var newNote Note
 	if err := json.NewDecoder(r.Body).Decode(&newNote); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	notesMutex.Lock()
 	// Sæt ID for den nye note
 	newNote.ID = len(notes) + 1
-
 	// Tilføj den nye note til listen
 	notes = append(notes, newNote)
+	notesMutex.Unlock()
 
 	// Gem opdaterede noter i filen
 	if err := writeNotes(); err != nil {
@@ -90,18 +98,32 @@ func createNoteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateNoteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Metode ikke tilladt", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var updatedNote Note
 	if err := json.NewDecoder(r.Body).Decode(&updatedNote); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	notesMutex.Lock()
+	found := false
 	// Find og opdater den eksisterende note
 	for i, note := range notes {
 		if note.ID == updatedNote.ID {
 			notes[i].Content = updatedNote.Content
+			found = true
 			break
 		}
+	}
+	notesMutex.Unlock()
+
+	if !found {
+		http.Error(w, "Note ikke fundet", http.StatusNotFound)
+		return
 	}
 
 	// Gem opdaterede noter i filen
@@ -118,6 +140,11 @@ func updateNoteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteNoteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Metode ikke tilladt", http.StatusMethodNotAllowed)
+		return
+	}
+
 	// Hent ID fra URL
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
@@ -126,12 +153,21 @@ func deleteNoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	notesMutex.Lock()
+	found := false
 	// Find og slet noten
 	for i, note := range notes {
 		if note.ID == id {
 			notes = append(notes[:i], notes[i+1:]...)
+			found = true
 			break
 		}
+	}
+	notesMutex.Unlock()
+
+	if !found {
+		http.Error(w, "Note ikke fundet", http.StatusNotFound)
+		return
 	}
 
 	// Gem opdaterede noter i filen
@@ -148,18 +184,18 @@ func main() {
 	if err := readNotes(); err != nil {
 		fmt.Println("Fejl ved læsning af noter:", err)
 	}
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		fmt.Println("Serverfejl:", err)
-	}
 
+	// Registrer handlers
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
-
 	http.HandleFunc("/notes", getNotesHandler)
 	http.HandleFunc("/notes/create", createNoteHandler)
 	http.HandleFunc("/notes/update", updateNoteHandler)
 	http.HandleFunc("/notes/delete", deleteNoteHandler)
 
+	// Start serveren
 	fmt.Println("Server kører på http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Println("Serverfejl:", err)
+	}
 }
