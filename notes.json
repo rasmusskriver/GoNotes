@@ -2,5 +2,9 @@
   {
     "id": 1,
     "content": "Dette er min første note"
+  },
+  {
+    "id": 2,
+    "content": "fisk"
   }
 ]

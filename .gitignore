@@ -1,1 +1,2 @@
-.json
+# Ignorere json filer
+*.json
