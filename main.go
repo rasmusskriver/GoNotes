@@ -136,6 +136,9 @@ func main() {
 		fmt.Println("Fejl ved læsning af noter:", err)
 	}
 
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+
 	http.HandleFunc("/notes", getNotesHandler)
 	http.HandleFunc("/notes/create", createNoteHandler)
 	http.HandleFunc("/notes/update", updateNoteHandler)
