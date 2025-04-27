@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notes App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+    <h1 class="text-4xl font-bold text-gray-800 mb-6">📝 Mine Noter</h1>
+
+    <!-- Toast container -->
+    <div
+      id="toast"
+      class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 pointer-events-none transition-opacity duration-300"
+    ></div>
+
+    <ul id="notes-list" class="w-full max-w-md space-y-4 mb-8"></ul>
+
+    <h2 class="text-2xl font-semibold text-gray-700 mb-4">
+      ➕ Tilføj en ny note
+    </h2>
+    <form id="note-form" class="w-full max-w-md flex">
+      <input
+        type="text"
+        id="note-content"
+        placeholder="Skriv en note..."
+        required
+        class="flex-grow p-2 rounded-l-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+      />
+      <button
+        type="submit"
+        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-md"
+      >
+        Gem
+      </button>
+    </form>
+
+    <script>
+      // Vis toast besked
+      function showToast(message, isError = false) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.classList.remove("opacity-0", "bg-red-500");
+        toast.classList.add(
+          "opacity-100",
+          isError ? "bg-red-500" : "bg-green-500",
+        );
+
+        // Efter 3 sekunder skjul toasten
+        setTimeout(() => {
+          toast.classList.remove("opacity-100");
+          toast.classList.add("opacity-0");
+        }, 3000);
+      }
+
+      async function fetchNotes() {
+        const response = await fetch("/notes");
+        const notes = await response.json();
+        const list = document.getElementById("notes-list");
+        list.innerHTML = "";
+        notes.forEach((note) => {
+          const li = document.createElement("li");
+          li.className =
+            "bg-white p-4 rounded-lg shadow flex justify-between items-center";
+
+          li.innerHTML = `
+                    <span class="text-gray-700 break-words">${note.content}</span>
+                    <div class="flex space-x-2">
+                        <button
+                            onclick="editNote(${note.id}, '${note.content.replace(/'/g, "\\'")}')"
+                            class="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md"
+                        >
+                            Rediger
+                        </button>
+                        <button
+                            onclick="deleteNote(${note.id})"
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md"
+                        >
+                            Slet
+                        </button>
+                    </div>
+                `;
+          list.appendChild(li);
+        });
+      }
+
+      async function deleteNote(id) {
+        await fetch(`/notes/${id}`, { method: "DELETE" });
+        showToast("Note slettet!", true); // Vist som error
+        fetchNotes();
+      }
+
+      async function editNote(id, currentContent) {
+        const newContent = prompt("Rediger din note:", currentContent);
+        if (newContent) {
+          await fetch(`/notes/${id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ content: newContent }),
+          });
+          showToast("Note opdateret!");
+          fetchNotes();
+        }
+      }
+
+      document
+        .getElementById("note-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const content = document.getElementById("note-content").value;
+          await fetch("/notes", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ content }),
+          });
+          showToast("Note oprettet!");
+          document.getElementById("note-content").value = "";
+          fetchNotes();
+        });
+
+      fetchNotes();
+    </script>
+  </body>
+</html>
