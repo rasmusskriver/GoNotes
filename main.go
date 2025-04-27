@@ -129,10 +129,8 @@ func deleteNoteHandler(w http.ResponseWriter, r *http.Request) {
 	// Find og slet noten
 	for i, note := range notes {
 		if note.ID == id {
-			if fmt.Sprintf("%d", note.ID) == id {
-				notes = append(notes[:i], notes[i+1:]...)
-				break
-			}
+			notes = append(notes[:i], notes[i+1:]...)
+			break
 		}
 	}
 
