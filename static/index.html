@@ -54,54 +54,74 @@
       }
 
       async function fetchNotes() {
-        const response = await fetch("/notes");
-        const notes = await response.json();
-        const list = document.getElementById("notes-list");
-        list.innerHTML = "";
-        notes.forEach((note) => {
-          const li = document.createElement("li");
-          li.className =
-            "bg-white p-4 rounded-lg shadow flex justify-between items-center";
+        try {
+          const response = await fetch("/notes");
+          const notes = await response.json();
+          const list = document.getElementById("notes-list");
+          list.innerHTML = "";
+          notes.forEach((note) => {
+            const li = document.createElement("li");
+            li.className =
+              "bg-white p-4 rounded-lg shadow flex justify-between items-center";
 
-          li.innerHTML = `
-                    <span class="text-gray-700 break-words">${note.content}</span>
-                    <div class="flex space-x-2">
-                        <button
-                            onclick="editNote(${note.id}, '${note.content.replace(/'/g, "\\'")}')"
-                            class="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md"
-                        >
-                            Rediger
-                        </button>
-                        <button
-                            onclick="deleteNote(${note.id})"
-                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md"
-                        >
-                            Slet
-                        </button>
-                    </div>
-                `;
-          list.appendChild(li);
-        });
+            li.innerHTML = `
+                      <span class="text-gray-700 break-words">${note.content}</span>
+                      <div class="flex space-x-2">
+                          <button
+                              onclick="editNote(${note.id}, '${note.content.replace(/'/g, "\\'")}')"
+                              class="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md"
+                          >
+                              Rediger
+                          </button>
+                          <button
+                              onclick="deleteNote(${note.id})"
+                              class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md"
+                          >
+                              Slet
+                          </button>
+                      </div>
+                  `;
+            list.appendChild(li);
+          });
+        } catch (error) {
+          console.error("Fejl ved hentning af noter:", error);
+          showToast("Kunne ikke hente noter", true);
+        }
       }
 
       async function deleteNote(id) {
-        await fetch(`/notes/${id}`, { method: "DELETE" });
-        showToast("Note slettet!", true); // Vist som error
-        fetchNotes();
+        try {
+          // Ændret til at bruge den korrekte URL-struktur for din backend
+          await fetch(`/notes/delete?id=${id}`, { method: "DELETE" });
+          showToast("Note slettet!");
+          fetchNotes();
+        } catch (error) {
+          console.error("Fejl ved sletning:", error);
+          showToast("Kunne ikke slette noten", true);
+        }
       }
 
       async function editNote(id, currentContent) {
         const newContent = prompt("Rediger din note:", currentContent);
         if (newContent) {
-          await fetch(`/notes/${id}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ content: newContent }),
-          });
-          showToast("Note opdateret!");
-          fetchNotes();
+          try {
+            // Ændret til at bruge den korrekte URL-struktur og inkludere ID
+            await fetch(`/notes/update`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                id: id,
+                content: newContent,
+              }),
+            });
+            showToast("Note opdateret!");
+            fetchNotes();
+          } catch (error) {
+            console.error("Fejl ved opdatering:", error);
+            showToast("Kunne ikke opdatere noten", true);
+          }
         }
       }
 
@@ -110,18 +130,25 @@
         .addEventListener("submit", async (e) => {
           e.preventDefault();
           const content = document.getElementById("note-content").value;
-          await fetch("/notes", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ content }),
-          });
-          showToast("Note oprettet!");
-          document.getElementById("note-content").value = "";
-          fetchNotes();
+          try {
+            // Ændret til at bruge den korrekte URL-struktur for din backend
+            await fetch("/notes/create", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ content }),
+            });
+            showToast("Note oprettet!");
+            document.getElementById("note-content").value = "";
+            fetchNotes();
+          } catch (error) {
+            console.error("Fejl ved oprettelse:", error);
+            showToast("Kunne ikke oprette noten", true);
+          }
         });
 
+      // Hent noter ved sideindlæsning
       fetchNotes();
     </script>
   </body>
