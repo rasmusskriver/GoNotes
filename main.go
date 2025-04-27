@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 )
 
@@ -23,13 +24,16 @@ func readNotes() error {
 	notesMutex.Lock()
 	defer notesMutex.Unlock()
 
-	// Læs filen
-	file, err := ioutil.ReadFile(filePath)
+	file, err := os.ReadFile(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// Filen findes ikke endnu, opret en tom liste
+			notes = []Note{}
+			return nil
+		}
 		return err
 	}
 
-	// Parse JSON indholdet
 	return json.Unmarshal(file, &notes)
 }
 
@@ -44,11 +48,15 @@ func writeNotes() error {
 	}
 
 	// Skriv til filen
-	return ioutil.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0644)
 }
 
 func getNotesHandler(w http.ResponseWriter, r *http.Request) {
 	// Returner alle noter som JSON
+	if r.Method != http.MethodGet {
+		http.Error(w, "Metode ikke tilladt", http.StatusMethodNotAllowed)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(notes); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -111,13 +119,20 @@ func updateNoteHandler(w http.ResponseWriter, r *http.Request) {
 
 func deleteNoteHandler(w http.ResponseWriter, r *http.Request) {
 	// Hent ID fra URL
-	id := r.URL.Query().Get("id")
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Ugyldigt ID", http.StatusBadRequest)
+		return
+	}
 
 	// Find og slet noten
 	for i, note := range notes {
-		if fmt.Sprintf("%d", note.ID) == id {
-			notes = append(notes[:i], notes[i+1:]...)
-			break
+		if note.ID == id {
+			if fmt.Sprintf("%d", note.ID) == id {
+				notes = append(notes[:i], notes[i+1:]...)
+				break
+			}
 		}
 	}
 
@@ -134,6 +149,9 @@ func main() {
 	// Læs noter fra fil ved serverstart
 	if err := readNotes(); err != nil {
 		fmt.Println("Fejl ved læsning af noter:", err)
+	}
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Println("Serverfejl:", err)
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
